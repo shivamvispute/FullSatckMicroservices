@@ -1,0 +1,17 @@
+# Ignore env files
+/services/analytics-service/.env
+/services/user-service/.env
+/services/task-service/.env
+/services/api-gateway/.env
+/frontend/.env
+
+# Node dependencies
+node_modules/
+
+# Logs and system files
+*.log
+.DS_Store
+
+# Docker volumes
+postgres_data/
+mongodb_data/
