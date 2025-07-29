@@ -1,0 +1,138 @@
+services:
+  # MongoDB for User Service
+  mongodb:
+    image: mongo:6.0
+    container_name: task-mgmt-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_DATABASE: userdb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - task-network
+
+  # PostgreSQL for Task Service
+  postgres:
+    image: postgres:15
+    container_name: task-mgmt-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: taskdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./services/task-service/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - task-network
+
+  # User Service
+  user-service:
+    build:
+      context: ./services/user-service
+      dockerfile: Dockerfile
+    container_name: task-mgmt-user-service
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 8001
+      MONGODB_URI: mongodb://admin:password@mongodb:27017/userdb?authSource=admin
+      JWT_SECRET: shivamprashantvispute11121999
+    ports:
+      - "8001:8001"
+    depends_on:
+      - mongodb
+    networks:
+      - task-network
+
+  # Task Service
+  task-service:
+    build:
+      context: ./services/task-service
+      dockerfile: Dockerfile
+    container_name: task-mgmt-task-service
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 8002
+      JWT_SECRET: shivamprashantvispute11121999
+      SERVICE_TOKEN: internal-token-123
+    ports:
+      - "8002:8002"
+    depends_on:
+      - postgres
+    networks:
+      - task-network
+
+  # Analytics Service
+  analytics-service:
+    build:
+      context: ./services/analytics-service
+      dockerfile: Dockerfile
+    container_name: task-mgmt-analytics-service
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 8003
+      TASK_SERVICE_URL: http://task-service:8002
+      JWT_SECRET: shivamprashantvispute11121999
+      SERVICE_TOKEN: internal-token-123
+    ports:
+      - "8003:8003"
+    depends_on:
+      - task-service
+    networks:
+      - task-network
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    container_name: task-mgmt-api-gateway
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 8000
+      USER_SERVICE_URL: http://user-service:8001
+      TASK_SERVICE_URL: http://task-service:8002
+      ANALYTICS_SERVICE_URL: http://analytics-service:8003
+      JWT_SECRET: shivamprashantvispute11121999
+    ports:
+      - "8000:8000"
+    depends_on:
+      - user-service
+      - task-service
+      - analytics-service
+    networks:
+      - task-network
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: task-mgmt-frontend
+    restart: unless-stopped
+    environment:
+      REACT_APP_API_URL: http://api-gateway:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api-gateway
+    networks:
+      - task-network
+
+volumes:
+  mongodb_data:
+  postgres_data:
+
+networks:
+  task-network:
+    driver: bridge 
